@@ -1,0 +1,11 @@
+[repository]
+name = "Hyswipe"
+authors = ["KZdkm"]
+
+[Hyswipe]
+description = "Gesture simulation"
+authors = ["KZdkm"]
+output = "Hyswipe.so"
+build = [
+    "make all"
+]
