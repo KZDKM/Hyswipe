@@ -1,6 +1,6 @@
 # Hyswipe
 
-Workspace swipe with mouse.
+Workspace swipe with mouse. Inspired by [Mac Mouse Fix](https://github.com/noah-nuebling/mac-mouse-fix).
 
 
 ## Installation
