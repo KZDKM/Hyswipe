@@ -19,6 +19,7 @@ bool lockCursor = true;
 
 bool fakeSwipeStarted = false;
 Vector2D lastCursorPos;
+PHLWORKSPACE lastWorkspace;
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
@@ -39,6 +40,7 @@ void onMouseButton(void* thisptr, SCallbackInfo& info, std::any args) {
             fakeEvent.fingers = *PSWIPEFINGERS;
             pStartSwipe(g_pInputManager.get(), &fakeEvent);
             lastCursorPos = g_pInputManager->getMouseCoordsInternal();
+            lastWorkspace = g_pCompositor->getMonitorFromCursor()->activeWorkspace;
             fakeSwipeStarted = true;
         }
         else {
@@ -65,8 +67,13 @@ void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
         fakeEvent.dx = d.x * curSwipeRatio * sensitivity;
         fakeEvent.dy = d.y * curSwipeRatio * sensitivity;
         pUpdateSwipe(g_pInputManager.get(), &fakeEvent);
-        if (lockCursor)
-            wlr_cursor_warp(g_pCompositor->m_sWLRCursor, NULL, lastCursorPos.x, lastCursorPos.y);
+        if (lockCursor) {
+            if (lastWorkspace != g_pCompositor->getMonitorFromCursor()->activeWorkspace) {
+                lastCursorPos = pos;
+                lastWorkspace = g_pCompositor->getMonitorFromCursor()->activeWorkspace;
+            }
+                wlr_cursor_warp(g_pCompositor->m_sWLRCursor, NULL, lastCursorPos.x, lastCursorPos.y);
+        }
         else
             lastCursorPos = pos;
     }
