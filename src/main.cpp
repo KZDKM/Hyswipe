@@ -57,6 +57,10 @@ void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
     if (fakeSwipeStarted && g_pInputManager->m_sActiveSwipe.pWorkspaceBegin) {
         info.cancelled = true;
         const auto pos = std::any_cast<Vector2D>(args);
+        if (lastWorkspace != g_pCompositor->getMonitorFromCursor()->activeWorkspace) {
+            lastCursorPos = pos;
+            lastWorkspace = g_pCompositor->getMonitorFromCursor()->activeWorkspace;
+        }
         const auto d = pos - lastCursorPos;
         wlr_pointer_swipe_update_event fakeEvent;
         static auto PSWIPEFINGERS = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_fingers");
@@ -68,11 +72,7 @@ void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
         fakeEvent.dy = d.y * curSwipeRatio * sensitivity;
         pUpdateSwipe(g_pInputManager.get(), &fakeEvent);
         if (lockCursor) {
-            if (lastWorkspace != g_pCompositor->getMonitorFromCursor()->activeWorkspace) {
-                lastCursorPos = pos;
-                lastWorkspace = g_pCompositor->getMonitorFromCursor()->activeWorkspace;
-            }
-                wlr_cursor_warp(g_pCompositor->m_sWLRCursor, NULL, lastCursorPos.x, lastCursorPos.y);
+            wlr_cursor_warp(g_pCompositor->m_sWLRCursor, NULL, lastCursorPos.x, lastCursorPos.y);
         }
         else
             lastCursorPos = pos;
