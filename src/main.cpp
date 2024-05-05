@@ -25,6 +25,22 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
 }
 
+void startSwipe() {
+    static auto PSWIPEFINGERS = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_fingers");
+    wlr_pointer_swipe_begin_event fakeEvent;
+    fakeEvent.fingers = *PSWIPEFINGERS;
+    pStartSwipe(g_pInputManager.get(), &fakeEvent);
+    lastCursorPos = g_pInputManager->getMouseCoordsInternal();
+    lastWorkspace = g_pCompositor->getMonitorFromCursor()->activeWorkspace;
+    fakeSwipeStarted = true;
+}
+
+void endSwipe() {
+    fakeSwipeStarted = false;
+    wlr_pointer_swipe_end_event fakeEvent;
+    pEndSwipe(g_pInputManager.get(), &fakeEvent);
+}
+
 void onMouseButton(void* thisptr, SCallbackInfo& info, std::any args) {
 
     const auto e = std::any_cast<wlr_pointer_button_event*>(args);
@@ -35,38 +51,26 @@ void onMouseButton(void* thisptr, SCallbackInfo& info, std::any args) {
     if (e->button == button) {
         info.cancelled = true;
         static auto PSWIPEFINGERS = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_fingers");
-        if (pressed) {
-            wlr_pointer_swipe_begin_event fakeEvent;
-            fakeEvent.fingers = *PSWIPEFINGERS;
-            pStartSwipe(g_pInputManager.get(), &fakeEvent);
-            lastCursorPos = g_pInputManager->getMouseCoordsInternal();
-            lastWorkspace = g_pCompositor->getMonitorFromCursor()->activeWorkspace;
-            fakeSwipeStarted = true;
-        }
-        else {
-            fakeSwipeStarted = false;
-            wlr_pointer_swipe_end_event fakeEvent;
-            pEndSwipe(g_pInputManager.get(), &fakeEvent);
-        }
+        if (pressed)
+            startSwipe();
+        else
+            endSwipe();         
     }
 
 }
 
 void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
 
-    if (fakeSwipeStarted && g_pInputManager->m_sActiveSwipe.pWorkspaceBegin) {
-        info.cancelled = true;
+    if (fakeSwipeStarted) {
+        static auto PSWIPEDIST = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_distance");
+        const auto SWIPEDISTANCE = std::clamp(*PSWIPEDIST, (int64_t)1LL, (int64_t)UINT32_MAX);
+        if (abs(g_pInputManager->m_sActiveSwipe.delta) >= SWIPEDISTANCE) return;
         const auto pos = std::any_cast<Vector2D>(args);
-        if (lastWorkspace != g_pCompositor->getMonitorFromCursor()->activeWorkspace) {
-            lastCursorPos = pos;
-            lastWorkspace = g_pCompositor->getMonitorFromCursor()->activeWorkspace;
-        }
         const auto d = pos - lastCursorPos;
         wlr_pointer_swipe_update_event fakeEvent;
         static auto PSWIPEFINGERS = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_fingers");
-        static auto PSWIPEDIST             = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_distance");
         const auto pMonitor = g_pCompositor->getMonitorFromCursor();
-        const float curSwipeRatio = *PSWIPEDIST / (pMonitor->vecSize.x * pMonitor->scale);
+        const float curSwipeRatio = SWIPEDISTANCE / (pMonitor->vecSize.x * pMonitor->scale);
         fakeEvent.fingers = *PSWIPEFINGERS;
         fakeEvent.dx = d.x * curSwipeRatio * sensitivity;
         fakeEvent.dy = d.y * curSwipeRatio * sensitivity;
@@ -78,14 +82,6 @@ void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
             lastCursorPos = pos;
     }
 
-}
-
-void onMouseAxis(void* thisptr, SCallbackInfo& info, std::any args) {
-
-    const auto e = std::any_cast<wlr_pointer_axis_event*>(std::any_cast<std::unordered_map<std::string, std::any>>(args)["event"]);
-    if (!e) return;
-
-    const auto pMonitor = g_pCompositor->getMonitorFromCursor();
 }
 
 void* findFunctionBySymbol(HANDLE inHandle, const std::string func, const std::string sym) {
@@ -104,6 +100,10 @@ void reloadConfig() {
     lockCursor = std::any_cast<Hyprlang::INT>(HyprlandAPI::getConfigValue(pHandle, "plugin:hyswipe:lockCursor")->getValue());
 }
 
+std::shared_ptr<HOOK_CALLBACK_FN> configReloadHook;
+std::shared_ptr<HOOK_CALLBACK_FN> mouseButtonHook;
+std::shared_ptr<HOOK_CALLBACK_FN> mouseMoveHook;
+
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE inHandle) {
     pHandle = inHandle;
 
@@ -111,16 +111,15 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE inHandle) {
     HyprlandAPI::addConfigValue(pHandle, "plugin:hyswipe:sensitivity", Hyprlang::FLOAT{1});
     HyprlandAPI::addConfigValue(pHandle, "plugin:hyswipe:lockCursor", Hyprlang::INT{1});
 
-    HyprlandAPI::registerCallbackDynamic(pHandle, "configReloaded", [&] (void* thisptr, SCallbackInfo& info, std::any data) { reloadConfig(); });
+    configReloadHook = HyprlandAPI::registerCallbackDynamic(pHandle, "configReloaded", [&] (void* thisptr, SCallbackInfo& info, std::any data) { reloadConfig(); });
     HyprlandAPI::reloadConfig();
 
     pStartSwipe = (tStartSwipe)findFunctionBySymbol(pHandle, "onSwipeBegin", "onSwipeBegin");
     pUpdateSwipe = (tUpdateSwipe)findFunctionBySymbol(pHandle, "onSwipeUpdate", "onSwipeUpdate");
     pEndSwipe = (tEndSwipe)findFunctionBySymbol(pHandle, "onSwipeEnd", "onSwipeEnd");
 
-    HyprlandAPI::registerCallbackDynamic(pHandle, "mouseButton", onMouseButton);
-    HyprlandAPI::registerCallbackDynamic(pHandle, "mouseAxis", onMouseAxis);
-    HyprlandAPI::registerCallbackDynamic(pHandle, "mouseMove", onMouseMove);
+    mouseButtonHook = HyprlandAPI::registerCallbackDynamic(pHandle, "mouseButton", onMouseButton);
+    mouseMoveHook = HyprlandAPI::registerCallbackDynamic(pHandle, "mouseMove", onMouseMove);
 
     return {"Hyprswipe", "Gesture simulation", "KZdkm", "0.1"};
 }
