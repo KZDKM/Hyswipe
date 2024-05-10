@@ -100,9 +100,9 @@ void reloadConfig() {
     lockCursor = std::any_cast<Hyprlang::INT>(HyprlandAPI::getConfigValue(pHandle, "plugin:hyswipe:lockCursor")->getValue());
 }
 
-CSharedPointer<HOOK_CALLBACK_FN> configReloadHook;
-CSharedPointer<HOOK_CALLBACK_FN> mouseButtonHook;
-CSharedPointer<HOOK_CALLBACK_FN> mouseMoveHook;
+std::shared_ptr<HOOK_CALLBACK_FN> configReloadHook;
+std::shared_ptr<HOOK_CALLBACK_FN> mouseButtonHook;
+std::shared_ptr<HOOK_CALLBACK_FN> mouseMoveHook;
 
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE inHandle) {
     pHandle = inHandle;
