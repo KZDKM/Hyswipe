@@ -5,9 +5,9 @@
 
 inline HANDLE pHandle;
 
-typedef void (*tStartSwipe)(CInputManager*, wlr_pointer_swipe_begin_event*);
-typedef void (*tUpdateSwipe)(CInputManager*, wlr_pointer_swipe_update_event*);
-typedef void (*tEndSwipe)(CInputManager*, wlr_pointer_swipe_end_event*);
+typedef void (*tStartSwipe)(void*, IPointer::SSwipeBeginEvent);
+typedef void (*tUpdateSwipe)(void*, IPointer::SSwipeUpdateEvent);
+typedef void (*tEndSwipe)(void*, IPointer::SSwipeEndEvent);
 
 tStartSwipe pStartSwipe;
 tUpdateSwipe pUpdateSwipe;
@@ -27,9 +27,9 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
 
 void startSwipe() {
     static auto PSWIPEFINGERS = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_fingers");
-    wlr_pointer_swipe_begin_event fakeEvent;
+    IPointer::SSwipeBeginEvent fakeEvent;
     fakeEvent.fingers = *PSWIPEFINGERS;
-    pStartSwipe(g_pInputManager.get(), &fakeEvent);
+    pStartSwipe(g_pInputManager.get(), fakeEvent);
     lastCursorPos = g_pInputManager->getMouseCoordsInternal();
     lastWorkspace = g_pCompositor->getMonitorFromCursor()->activeWorkspace;
     fakeSwipeStarted = true;
@@ -37,20 +37,18 @@ void startSwipe() {
 
 void endSwipe() {
     fakeSwipeStarted = false;
-    wlr_pointer_swipe_end_event fakeEvent;
-    pEndSwipe(g_pInputManager.get(), &fakeEvent);
+    IPointer::SSwipeEndEvent fakeEvent;
+    pEndSwipe(g_pInputManager.get(), fakeEvent);
 }
 
 void onMouseButton(void* thisptr, SCallbackInfo& info, std::any args) {
 
-    const auto e = std::any_cast<wlr_pointer_button_event*>(args);
-    if (!e) return;
+    const auto e = std::any_cast<IPointer::SButtonEvent>(args);
 
-    const auto pressed = e->state == WL_POINTER_BUTTON_STATE_PRESSED;
+    const auto pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
 
-    if (e->button == button) {
+    if (e.button == button) {
         info.cancelled = true;
-        static auto PSWIPEFINGERS = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_fingers");
         if (pressed)
             startSwipe();
         else
@@ -65,18 +63,19 @@ void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
         static auto PSWIPEDIST = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_distance");
         const auto SWIPEDISTANCE = std::clamp(*PSWIPEDIST, (int64_t)1LL, (int64_t)UINT32_MAX);
         if (abs(g_pInputManager->m_sActiveSwipe.delta) >= SWIPEDISTANCE) return;
-        const auto pos = std::any_cast<Vector2D>(args);
+        const auto pos = std::any_cast<const Vector2D>(args);
         const auto d = pos - lastCursorPos;
-        wlr_pointer_swipe_update_event fakeEvent;
+        IPointer::SSwipeUpdateEvent fakeEvent;
         static auto PSWIPEFINGERS = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_fingers");
         const auto pMonitor = g_pCompositor->getMonitorFromCursor();
         const float curSwipeRatio = SWIPEDISTANCE / (pMonitor->vecSize.x * pMonitor->scale);
         fakeEvent.fingers = *PSWIPEFINGERS;
-        fakeEvent.dx = d.x * curSwipeRatio * sensitivity;
-        fakeEvent.dy = d.y * curSwipeRatio * sensitivity;
-        pUpdateSwipe(g_pInputManager.get(), &fakeEvent);
+        fakeEvent.delta.x = d.x * curSwipeRatio * sensitivity;
+        fakeEvent.delta.y = d.y * curSwipeRatio * sensitivity;
+        pUpdateSwipe(g_pInputManager.get(), fakeEvent);
         if (lockCursor) {
-            wlr_cursor_warp(g_pCompositor->m_sWLRCursor, NULL, lastCursorPos.x, lastCursorPos.y);
+            const auto warpPos = lastCursorPos;
+            g_pCompositor->warpCursorTo(warpPos, true);
         }
         else
             lastCursorPos = pos;
@@ -100,9 +99,9 @@ void reloadConfig() {
     lockCursor = std::any_cast<Hyprlang::INT>(HyprlandAPI::getConfigValue(pHandle, "plugin:hyswipe:lockCursor")->getValue());
 }
 
-std::shared_ptr<HOOK_CALLBACK_FN> configReloadHook;
-std::shared_ptr<HOOK_CALLBACK_FN> mouseButtonHook;
-std::shared_ptr<HOOK_CALLBACK_FN> mouseMoveHook;
+Hyprutils::Memory::CSharedPointer<HOOK_CALLBACK_FN> configReloadHook;
+Hyprutils::Memory::CSharedPointer<HOOK_CALLBACK_FN> mouseButtonHook;
+Hyprutils::Memory::CSharedPointer<HOOK_CALLBACK_FN> mouseMoveHook;
 
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE inHandle) {
     pHandle = inHandle;
