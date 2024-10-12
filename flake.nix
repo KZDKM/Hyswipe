@@ -60,7 +60,7 @@
           '';
           installPhase = ''
             mkdir -p $out/lib
-            cp Hyswipe.so $out/lib
+            cp Hyswipe.so $out/lib/libHyswipe.so
           '';
 
           meta = {
