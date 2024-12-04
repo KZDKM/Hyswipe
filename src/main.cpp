@@ -60,24 +60,20 @@ void onMouseButton(void* thisptr, SCallbackInfo& info, std::any args) {
 void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
 
     if (fakeSwipeStarted) {
+        if (lockCursor)
+            g_pCompositor->warpCursorTo(lastCursorPos, true);
         static auto PSWIPEDIST = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_distance");
         const auto SWIPEDISTANCE = std::clamp(*PSWIPEDIST, (int64_t)1LL, (int64_t)UINT32_MAX);
         if (abs(g_pInputManager->m_sActiveSwipe.delta) >= SWIPEDISTANCE) return;
         const auto pos = std::any_cast<const Vector2D>(args);
         const auto d = pos - lastCursorPos;
         IPointer::SSwipeUpdateEvent fakeEvent;
-        static auto PSWIPEFINGERS = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_fingers");
         const auto pMonitor = g_pCompositor->getMonitorFromCursor();
         const float curSwipeRatio = SWIPEDISTANCE / (pMonitor->vecSize.x * pMonitor->scale);
-        fakeEvent.fingers = *PSWIPEFINGERS;
         fakeEvent.delta.x = d.x * curSwipeRatio * sensitivity;
         fakeEvent.delta.y = d.y * curSwipeRatio * sensitivity;
         pUpdateSwipe(g_pInputManager.get(), fakeEvent);
-        if (lockCursor) {
-            const auto warpPos = lastCursorPos;
-            g_pCompositor->warpCursorTo(warpPos, true);
-        }
-        else
+        if (!lockCursor)
             lastCursorPos = pos;
     }
 
