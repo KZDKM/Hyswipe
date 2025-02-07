@@ -2,6 +2,7 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 
 inline HANDLE pHandle;
 
@@ -62,10 +63,11 @@ void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
     if (fakeSwipeStarted) {
         if (lockCursor)
             g_pCompositor->warpCursorTo(lastCursorPos, true);
+        //info.cancelled = lockCursor;
         static auto PSWIPEDIST = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_distance");
         const auto SWIPEDISTANCE = std::clamp(*PSWIPEDIST, (int64_t)1LL, (int64_t)UINT32_MAX);
         if (abs(g_pInputManager->m_sActiveSwipe.delta) >= SWIPEDISTANCE) return;
-        const auto pos = std::any_cast<const Vector2D>(args);
+        const auto pos = g_pInputManager->getMouseCoordsInternal();
         const auto d = pos - lastCursorPos;
         IPointer::SSwipeUpdateEvent fakeEvent;
         const auto pMonitor = g_pCompositor->getMonitorFromCursor();
