@@ -61,7 +61,7 @@ void onMouseButton(void* thisptr, SCallbackInfo& info, std::any args) {
 void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
 
     if (fakeSwipeStarted) {
-        info.cancelled = lockCursor;
+        //info.cancelled = lockCursor;
         static auto PSWIPEDIST = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_distance");
         const auto SWIPEDISTANCE = std::clamp(*PSWIPEDIST, (int64_t)1LL, (int64_t)UINT32_MAX);
         if (abs(g_pInputManager->m_sActiveSwipe.delta) >= SWIPEDISTANCE) return;
@@ -73,7 +73,9 @@ void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
         fakeEvent.delta.x = d.x * curSwipeRatio * sensitivity;
         fakeEvent.delta.y = d.y * curSwipeRatio * sensitivity;
         pUpdateSwipe(g_pInputManager.get(), fakeEvent);
-        if (!lockCursor)
+        if (lockCursor)
+            g_pCompositor->warpCursorTo(lastCursorPos);
+        else
             lastCursorPos = pos;
     }
 
