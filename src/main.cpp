@@ -61,13 +61,11 @@ void onMouseButton(void* thisptr, SCallbackInfo& info, std::any args) {
 void onMouseMove(void* thisptr, SCallbackInfo& info, std::any args) {
 
     if (fakeSwipeStarted) {
-        if (lockCursor)
-            g_pCompositor->warpCursorTo(lastCursorPos, true);
-        //info.cancelled = lockCursor;
+        info.cancelled = lockCursor;
         static auto PSWIPEDIST = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_distance");
         const auto SWIPEDISTANCE = std::clamp(*PSWIPEDIST, (int64_t)1LL, (int64_t)UINT32_MAX);
         if (abs(g_pInputManager->m_sActiveSwipe.delta) >= SWIPEDISTANCE) return;
-        const auto pos = g_pInputManager->getMouseCoordsInternal();
+        const auto pos = std::any_cast<Vector2D>(args);
         const auto d = pos - lastCursorPos;
         IPointer::SSwipeUpdateEvent fakeEvent;
         const auto pMonitor = g_pCompositor->getMonitorFromCursor();
